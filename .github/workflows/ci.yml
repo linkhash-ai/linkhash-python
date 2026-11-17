@@ -17,15 +17,16 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # uv provides every CPython version, including ones (like 3.9) that the
+      # current GitHub runner images no longer ship.
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install packages and test tools
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pytest ./packages/linkhash ./packages/linkhash-provo
+        run: uv pip install pytest ./packages/linkhash ./packages/linkhash-provo
       - name: Test
         run: python -m pytest packages tests
+
   build:
     runs-on: ubuntu-latest
     steps:
