@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "linkhash-provo"
+dynamic = ["version"]
+description = "Provo: payments toolkit by Linkhash (early development)."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+authors = [{ name = "Linkhash", email = "oss@linkhash.ai" }]
+keywords = ["linkhash", "provo", "payments", "money", "currency", "iso4217"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Office/Business :: Financial",
+    "Typing :: Typed",
+]
+dependencies = ["linkhash>=0.0.1"]
+
+[project.urls]
+Source = "https://github.com/linkhash-ai/linkhash-python"
+Issues = "https://github.com/linkhash-ai/linkhash-python/issues"
+
+[tool.hatch.version]
+path = "src/linkhash/provo/__init__.py"
+
+# `linkhash` is an implicit namespace package shared by every Linkhash
+# distribution: never add src/linkhash/__init__.py.
+[tool.hatch.build.targets.wheel]
+packages = ["src/linkhash"]

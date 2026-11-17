@@ -1,0 +1,97 @@
+# Publishes packages to TestPyPI or PyPI with Trusted Publishing (no API tokens).
+#
+# One-time setup per index and per project (linkhash, linkhash-provo):
+#   PyPI / TestPyPI → Publishing → Add a (pending) publisher → GitHub
+#     Owner: linkhash-ai   Repository: linkhash-python
+#     Workflow: publish.yml   Environment: pypi  (or testpypi)
+# and create GitHub environments "pypi" and "testpypi" in the repo settings
+# (add required reviewers to "pypi" so real releases need approval).
+#
+# Release paths:
+#   - Manual: Actions → Publish → Run workflow (choose package and index).
+#   - Tag:    push `<package>/v<version>`, e.g. `linkhash-provo/v0.1.0` → PyPI.
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish
+        type: choice
+        options: [all, linkhash, linkhash-provo]
+        default: all
+      index:
+        description: Package index
+        type: choice
+        options: [testpypi, pypi]
+        default: testpypi
+  push:
+    tags:
+      - "linkhash/v*"
+      - "linkhash-provo/v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      index: ${{ steps.target.outputs.index }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Choose packages and index
+        id: target
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_PACKAGE: ${{ inputs.package }}
+          INPUT_INDEX: ${{ inputs.index }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT" = "push" ]; then
+            pkg="${REF_NAME%%/v*}"; ver="${REF_NAME##*/v}"; index=pypi
+          else
+            pkg="$INPUT_PACKAGE"; ver=""; index="$INPUT_INDEX"
+          fi
+          if [ "$pkg" = "all" ]; then pkgs="linkhash linkhash-provo"; else pkgs="$pkg"; fi
+          for p in $pkgs; do test -d "packages/$p" || { echo "unknown package: $p"; exit 1; }; done
+          echo "pkgs=$pkgs" >> "$GITHUB_OUTPUT"
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
+          echo "index=$index" >> "$GITHUB_OUTPUT"
+      - name: Test
+        run: |
+          python -m pip install pytest ./packages/linkhash ./packages/linkhash-provo
+          python -m pytest packages tests
+      - name: Build
+        env:
+          PKGS: ${{ steps.target.outputs.pkgs }}
+          VER: ${{ steps.target.outputs.ver }}
+        run: |
+          python -m pip install build twine
+          for p in $PKGS; do python -m build "packages/$p" --outdir dist; done
+          python -m twine check --strict dist/*
+          if [ -n "$VER" ]; then
+            ls dist | grep -q -- "-$VER[-.]" || { echo "tag version $VER does not match the built files:"; ls dist; exit 1; }
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ needs.build.outputs.index }}
+    permissions:
+      id-token: write  # required for Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: ${{ needs.build.outputs.index == 'pypi' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
